@@ -16,21 +16,14 @@ return new class extends Migration
             $table->string('name', 100);
             $table->string('phone', 15)->nullable();
             $table->string('identification', 50)->nullable();
-            $table->unsignedInteger('type_identification_id')->nullable();
-            $table->unsignedInteger('rol_id')->nullable();
-            $table->string('email', 100)->unique();
-            $table->unsignedInteger('state_id')->nullable();
+            $table->foreignId('rol_id')->constrained('roles')->onDelete('cascade');
+            $table->foreignId('state_id')->constrained('states')->onDelete('cascade');
+            $table->foreignId('type_identification_id')->nullable()->constrained('type_identifications')->onDelete('set null');
+            $table->string('email', length: 100)->unique();
             $table->string('image', 200)->nullable();
             $table->string('password', 255);
             $table->integer('points')->default(0)->nullable();
         });
-
-        // Crear tabla password_reset_tokens
-        /* Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
-        }); */
     }
 
     /**
@@ -38,7 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-       // Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('users');
     }
 };

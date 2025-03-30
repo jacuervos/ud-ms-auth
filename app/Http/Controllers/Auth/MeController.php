@@ -4,19 +4,20 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\BaseController;
 use App\Http\Resources\User\UserResource;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class MeController extends BaseController
 {
     public function authMe(): JsonResponse
     {
-        if (auth('sanctum')->check()){
-            $user = auth('sanctum')->user();
-            $user = UserResource::make(User::find($user->id));
-            return $this->sendResponse($user, 'User info');
+        // Intentar obtener el usuario autenticado con JWT
+        $user = JWTAuth::parseToken()->authenticate();
+
+        if ($user) {
+            return $this->sendResponse(UserResource::make($user), 'User info');
         } else {
-            return $this->sendError('Unauthorised', ['error'=>'No se encuentra logueado'],400);
+            return $this->sendError('Unauthorised', ['error' => 'No se encuentra logueado'], 401);
         }
     }
 }

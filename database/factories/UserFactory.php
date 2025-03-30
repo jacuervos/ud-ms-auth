@@ -4,7 +4,9 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use App\Models\Rol;
+use App\Models\State;
+use App\Models\TypeIdentification;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
@@ -24,11 +26,16 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
+            'name' => $this->faker->name(),
+            'phone' => substr($this->faker->phoneNumber(), 0, 15),
+            'identification' => $this->faker->unique()->numerify('##########'),
+            'type_identification_id' => TypeIdentification::inRandomOrder()->first()->id ?? 1, // Obtiene un ID real o usa un valor por defecto
+            'rol_id' => Rol::inRandomOrder()->first()->id ?? 1, // Obtiene un ID real o usa un valor por defecto
+            'email' => $this->faker->unique()->safeEmail(),
+            'state_id' => State::inRandomOrder()->first()->id ?? 1, // Obtiene un ID real o usa un valor por defecto
+            'image' => $this->faker->imageUrl(200, 200, 'people'),
             'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            'points' => $this->faker->numberBetween(0, 100),
         ];
     }
 
