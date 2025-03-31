@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name', 100);
             $table->string('phone', 15)->nullable();
             $table->string('identification', 50)->nullable();
-            $table->foreignId('rol_id')->constrained('roles')->onDelete('cascade');
+            $table->foreignId('rol_id')->constrained('rols')->onDelete('cascade');
             $table->foreignId('state_id')->constrained('states')->onDelete('cascade');
             $table->foreignId('type_identification_id')->nullable()->constrained('type_identifications')->onDelete('set null');
             $table->string('email', length: 100)->unique();

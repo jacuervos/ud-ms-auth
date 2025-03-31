@@ -9,8 +9,8 @@ Route::prefix('auth')->group(function () {
     Route::post('register', '\App\Http\Controllers\Auth\RegisterController@register')->name('auth.register'); // Registrar un nuevo usuario
 
     // Rutas protegidas con JWT
-    Route::middleware(['auth:api'])->group(function () {
-        Route::get('auth_me', '\App\Http\Controllers\Auth\MeController@authMe')->name('auth.me'); // Ver usuario autenticado
-        Route::post('logout', '\App\Http\Controllers\Auth\LogoutController@logout')->name('auth.logout'); // Cerrar sesión
+    Route::middleware(['jwt.auth'])->group(function () {
+        Route::get('auth_me', '\App\Http\Controllers\Auth\MeController@authMe')->name('auth.me');
+        Route::post('logout', '\App\Http\Controllers\Auth\LogoutController@logout')->name('auth.logout');
     });
 });
