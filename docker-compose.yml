@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:80"
+    environment:
+      DB_CONNECTION : pgsql
+      DB_HOST : postgres-db
+      DB_PORT : 5432
+      DB_DATABASE : auth_ms
+      DB_USERNAME : postgres
+      DB_PASSWORD : postgres
+    depends_on:
+      - postgres-db
+
   postgres-db:
     image: postgres:latest
     container_name: auth-ms
