@@ -1,33 +1,55 @@
 version: '3.8'
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8000:80"
+    image: laravel-app
+    container_name: laravel-app
+    restart: unless-stopped
+    tty: true
     environment:
-      DB_CONNECTION : pgsql
-      DB_HOST : postgres-db
-      DB_PORT : 5432
-      DB_DATABASE : auth_ms
-      DB_USERNAME : postgres
-      DB_PASSWORD : postgres
-    depends_on:
-      - postgres-db
-
-  postgres-db:
-    image: postgres:latest
-    container_name: auth-ms
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: auth_ms
-    ports:
-      - "5432:5432"
+      SERVICE_NAME: app
+      SERVICE_TAGS: dev
+    working_dir: /var/www
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - .:/var/www
+      - ./docker-compose/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - app-network
+
+  webserver:
+    image: nginx:alpine
+    container_name: nginx-webserver
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www
+      - ./docker-compose/nginx:/etc/nginx/conf.d/
+    networks:
+      - app-network
+
+  db:
+    image: mysql:5.7
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: root
+      MYSQL_USER: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
-  postgres_data:
+  dbdata:
+    driver: local

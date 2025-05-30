@@ -1,31 +1,44 @@
+# Usa la imagen oficial de PHP con Apache
 FROM php:8.2-apache
 
-# Instalar extensiones necesarias
+# Instala dependencias del sistema
 RUN apt-get update && apt-get install -y \
-    zip unzip curl git libpq-dev \
-    && docker-php-ext-install pdo_pgsql
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    unzip \
+    libzip-dev \
+    libpq-dev \
+    && docker-php-ext-install pdo pdo_pgsql mbstring zip exif pcntl bcmath
 
-# Instalar Composer
+# Instala Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Setea el directorio de trabajo
+# Configura directorio de Laravel
 WORKDIR /var/www/html
 
-# Copiar código fuente
+# Copia archivos de la app
 COPY . .
 
-# Instalar dependencias de Laravel
-RUN composer install --no-interaction
+# Instala dependencias de PHP
+RUN composer install --no-dev --optimize-autoloader
 
-# Habilitar mod_rewrite
+# Copia configuración personalizada de Apache
+COPY ./docker/apache/vhost.conf /etc/apache2/sites-available/000-default.conf
+
+# Habilita mod_rewrite de Apache para Laravel
 RUN a2enmod rewrite
 
-# Cambiar DocumentRoot a public/
-RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
+# Asigna permisos a storage y bootstrap
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Ajustar permisos
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage \
-    && chmod -R 755 /var/www/html/bootstrap/cache
+# Copia y usa el entrypoint personalizado
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
 
+# Expone el puerto
 EXPOSE 80
