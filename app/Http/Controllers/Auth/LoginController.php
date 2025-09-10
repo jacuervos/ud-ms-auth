@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\BaseController;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Rol;
 use App\Models\State;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
@@ -14,7 +15,7 @@ class LoginController extends BaseController
     public function login(LoginRequest $loginRequest)
     {
         $credentials = $loginRequest->only('email', 'password');
-        
+
         // Intentar autenticar al usuario
         if (!$token = JWTAuth::attempt($credentials)) {
             return $this->sendError('Unauthorized', ['error' => 'Credenciales inválidas'], 401);
@@ -27,7 +28,8 @@ class LoginController extends BaseController
         if (State::find($user->state_id)->name !== State::ENABLED) {
             return response(["message" => "Usuario no habilitado", "code" => 400], Response::HTTP_UNAUTHORIZED);
         }
-
-        return $this->sendResponse(["access_token" => $token], 'Login successfully');
+        // Devolver el suuario
+        $rolUser = Rol::find($user->rol_id)->name;
+        return $this->sendResponse(["access_token" => $token, "rol" => $rolUser], 'Login successfully');
     }
 }
