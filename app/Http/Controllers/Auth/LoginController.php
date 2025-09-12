@@ -28,8 +28,15 @@ class LoginController extends BaseController
         if (State::find($user->state_id)->name !== State::ENABLED) {
             return response(["message" => "Usuario no habilitado", "code" => 400], Response::HTTP_UNAUTHORIZED);
         }
-        // Devolver el suuario
+
+        // Obtener el rol
         $rolUser = Rol::find($user->rol_id)->name;
+
+        // Generar el token con el rol incluido como claim
+        $customClaims = ['rol' => $rolUser];
+        $token = JWTAuth::claims($customClaims)->attempt($credentials);
+
+        // Devolver el token y el rol (opcional, para que el frontend lo tenga también)
         return $this->sendResponse(["access_token" => $token, "rol" => $rolUser], 'Login successfully');
     }
 }
