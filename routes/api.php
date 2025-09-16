@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 // Auth
     Route::post('login', '\App\Http\Controllers\Auth\LoginController@login')->name('auth.login');
     Route::post('register', '\App\Http\Controllers\Auth\RegisterController@register')->name('auth.register'); // Registrar un nuevo usuario
+    Route::get('type_identifications', '\App\Http\Controllers\TypeIdentification\TypeIdentificationController@index')->name('typeIdentification.index'); // Ver tipo de documentos
 
     // Rutas protegidas con JWT
     Route::middleware(['auth:api'])->group(function () {
