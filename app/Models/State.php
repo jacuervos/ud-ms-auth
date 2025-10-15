@@ -15,6 +15,7 @@ class State extends Model
     //User
     const ENABLED = 'Habilitado';
     const DISABLED = 'Inhabilitado';
+    const PENDING_USER = 'Pendiente de Validar';
 
     public function users(){
         return $this->hasMany(User::class);
