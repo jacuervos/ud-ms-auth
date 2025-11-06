@@ -1,11 +1,11 @@
 <?php
-  
+
 namespace App\Http\Controllers;
-  
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse; // Importa JsonResponse
 use App\Http\Controllers\Controller as Controller;
-  
+
 class BaseController extends Controller
 {
     /**
@@ -18,10 +18,24 @@ class BaseController extends Controller
             'data'    => $result,
             'message' => $message,
         ];
-  
+
         return response()->json($response, 200); // Laravel ya devuelve JsonResponse aquí
     }
-  
+
+    /**
+     * Success message response.
+     */
+    public function sendMessageResponse($message): JsonResponse
+    {
+        $response = [
+            'success' => true,
+            'message' => $message,
+        ];
+
+        return response()->json($response, 200); // Laravel ya devuelve JsonResponse aquí
+    }
+
+
     /**
      * Return error response.
      */
@@ -31,11 +45,11 @@ class BaseController extends Controller
             'success' => false,
             'message' => $error,
         ];
-  
+
         if (!empty($errorMessages)) {
             $response['data'] = $errorMessages;
         }
-  
+
         return response()->json($response, $code); // Laravel ya devuelve JsonResponse aquí
     }
 }
