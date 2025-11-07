@@ -21,7 +21,7 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'address' => $this->address,
             'identification' => $this->identification,
-            'photo' => $this->photo,
+            'photo' => $this->image,
             'rol' => [
                 'id' => $this->rol->id,
                 'name' => $this->rol->name,
@@ -30,7 +30,19 @@ class UserResource extends JsonResource
                 'id' => $this->state->id,
                 'name' => $this->state->name,
                 'color' => $this->state->color,
-            ]
+            ],
+            'collector' => $this->when($this->collector, function () {
+                return [
+                    'id' => $this->collector->id,
+                    'identification' => $this->collector->identification_document,
+                    'driving' => $this->collector->driving_license_document,
+                    'state' => [
+                        'id' => $this->collector->state->id ?? null,
+                        'name' => $this->collector->state->name ?? null,
+                        'color' => $this->collector->state->color ?? null,
+                    ],
+                ];
+            }),
         ];
     }
 }

@@ -31,11 +31,17 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->belongsTo(TypeIdentification::class);
     }
+
+    public function collector()
+    {
+        return $this->hasOne(Collector::class);
+    }
+
     public function getJWTIdentifier()
     {
            return $this->getKey();
     }
-   
+
     public function getJWTCustomClaims()
     {
            return [];
