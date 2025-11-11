@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 // Auth
     Route::post('login', '\App\Http\Controllers\Auth\LoginController@login')->name('auth.login');
     Route::post('register_controller', '\App\Http\Controllers\Auth\RegisterCollectorController@registerApp')->name('auth.registerCollector'); // Registrar collector desde la app
+    Route::post('register_user', '\App\Http\Controllers\Auth\RegisterUserController@registerUserApp')->name('auth.registerCollector'); // Registrar usuario desde la app
     Route::post('register', '\App\Http\Controllers\Auth\RegisterController@register')->name('auth.register'); // Registrar un nuevo usuario
     Route::get('type_identifications', '\App\Http\Controllers\TypeIdentification\TypeIdentificationController@index')->name('typeIdentification.index'); // Ver tipo de documentos
 
