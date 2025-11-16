@@ -30,8 +30,6 @@ class RegisterUserController extends BaseController
 
     public function registerUserApp(RegisterUserRequest $request)
     {
-        DB::beginTransaction();
-
         $user = New User();
         $user->name = $request->name;
         $user->phone = $request->phone;
