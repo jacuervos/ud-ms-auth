@@ -15,10 +15,15 @@ class ChangePasswordController extends BaseController
 
     public function createCodeForgotPassword(CreateCodeRequest $createCodeRequest)
     {
+        $exist = ForgotPassword::where('email', $createCodeRequest->email)->first();
+        if($exist){
+            $exist->delete();
+        }
         $forgot = New ForgotPassword();
         $forgot->email = $createCodeRequest->email;
         $forgot->code = random_int(100000, 999999);
         $forgot->save();
+        return $this->sendMessageResponse('Código enviado, revisar correo.');
     }
 
     public function validateCode(ValidateCodeRequest $validateCodeRequest)
