@@ -40,7 +40,7 @@ class RegisterUserRequest extends FormRequest
              'phone' => 'required|string|max:15|regex:/^\+?[0-9]*$/', // Teléfono obligatorio, formato válido
              'identification' => 'required|string|max:50', // Identificación obligatorio, máx. 50 caracteres
              'type_identification' => 'required|integer|exists:type_identifications,id', // ID de tipo de identificación obligatorio, debe existir en otra tabla
-             'images' => 'file|max:2048', // URL de imagen obligatorio, máx. 200 caracteres
+             'images' => 'file|max:2048', // URL de obligatorio, máx. 200 caracteres
          ];
      }
 

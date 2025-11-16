@@ -46,7 +46,10 @@ class RegisterUserController extends BaseController
             $user->image = $image;
         }
         $user->save();
-
-        return $user;
+        $data = [
+            'message' => 'Se ha creado el usuario correctamente',
+            'code' => 200,
+        ];
+        return response()->json($data);
     }
 }
