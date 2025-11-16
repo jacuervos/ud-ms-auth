@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
     Route::post('register', '\App\Http\Controllers\Auth\RegisterController@register')->name('auth.register'); // Registrar un nuevo usuario
     Route::get('type_identifications', '\App\Http\Controllers\TypeIdentification\TypeIdentificationController@index')->name('typeIdentification.index'); // Ver tipo de documentos
 
+    Route::post('send_code', '\App\Http\Controllers\ForgotPassword\ChangePasswordController@createCodeForgotPassword')->name('forgotPassword.createCode'); // Enviar código
     Route::post('validate_code', '\App\Http\Controllers\ForgotPassword\ChangePasswordController@validateCode')->name('forgotPassword.validate'); // Validar código
     Route::post('change_password', '\App\Http\Controllers\ForgotPassword\ChangePasswordController@changePassword')->name('forgotPassword.changePassword'); // Cambiar contraseña
 
