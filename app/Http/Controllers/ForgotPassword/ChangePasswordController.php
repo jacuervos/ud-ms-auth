@@ -30,7 +30,7 @@ class ChangePasswordController extends BaseController
     {
         $exist = ForgotPassword::where('code', $validateCodeRequest->code)->first();
         if($exist){
-            return $this->sendMessageResponse('Código valido, ahora cambia la contraseña');
+            return $this->sendMessageResponse('Código válido, ahora cambia la contraseña');
         }else{
             return $this->sendError('Código no encontrado.');
         }
