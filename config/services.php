@@ -35,4 +35,7 @@ return [
         ],
     ],
 
+    'level_service' => [
+        'url' => env('LEVEL_URL'),
+    ],
 ];

@@ -7,10 +7,10 @@ use App\Http\Requests\Auth\RegisterUserRequest;
 use App\Models\Rol;
 use App\Models\State;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Http;
 
 class RegisterUserController extends BaseController
 {
@@ -48,6 +48,10 @@ class RegisterUserController extends BaseController
             'message' => 'Se ha creado el usuario correctamente',
             'code' => 200,
         ];
+        Http::baseUrl(config('services.level_service.url'))
+            ->post('/user-level-init', [
+                'user_id' => $user->id,
+            ]);
         return response()->json($data);
     }
 }
