@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\UpdateFirebaseTokenController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -17,5 +18,6 @@ use Illuminate\Support\Facades\Route;
     // Rutas protegidas con JWT
     Route::middleware(['auth:api'])->group(function () {
         Route::get('auth_me', '\App\Http\Controllers\Auth\MeController@authMe')->name('auth.me');
+        Route::post('firebase-token', UpdateFirebaseTokenController::class)->name('auth.firebaseToken');
         Route::post('logout', '\App\Http\Controllers\Auth\LogoutController@logout')->name('auth.logout');
     });

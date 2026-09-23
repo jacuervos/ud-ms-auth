@@ -34,6 +34,12 @@ class LoginController extends BaseController
             // Obtener el rol
             $rolUser = Rol::find($user->rol_id)->name;
 
+            // Un dispositivo por cuenta: el último login reemplaza el token Firebase.
+            if ($loginRequest->filled('firebase_token')) {
+                $user->firebase_token = $loginRequest->firebase_token;
+                $user->save();
+            }
+
             // Generar el token con el rol incluido como claim
             $customClaims = ['rol' => $rolUser];
             $token = JWTAuth::claims($customClaims)->attempt($credentials);
@@ -59,7 +65,7 @@ class LoginController extends BaseController
 
     public function createCodeForgotPassword($email)
     {
-        $forgot = New ForgotPassword();
+        $forgot = new ForgotPassword();
         $forgot->email = $email;
         $forgot->code = random_int(100000, 999999);
         $forgot->save();

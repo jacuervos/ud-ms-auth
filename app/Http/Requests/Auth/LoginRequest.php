@@ -37,6 +37,7 @@ class LoginRequest extends FormRequest
         return [
             'email'=> 'required|email',
             'password' => 'required',
+            'firebase_token' => 'nullable|string|max:4096',
         ];
     }
 
