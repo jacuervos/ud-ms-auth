@@ -38,4 +38,10 @@ return [
     'level_service' => [
         'url' => env('LEVEL_URL'),
     ],
+
+    'azure_communication' => [
+        'endpoint' => env('AZURE_COMMUNICATION_ENDPOINT'),
+        'access_key' => env('AZURE_COMMUNICATION_ACCESS_KEY'),
+        'sender' => env('AZURE_EMAIL_SENDER'),
+    ],
 ];
