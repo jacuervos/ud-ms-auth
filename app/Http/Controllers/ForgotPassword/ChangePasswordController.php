@@ -9,21 +9,68 @@ use App\Http\Requests\ForgotPassword\ValidateCodeRequest;
 use App\Models\ForgotPassword;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Services\AzureEmailService;
 
 class ChangePasswordController extends BaseController
 {
 
-    public function createCodeForgotPassword(CreateCodeRequest $createCodeRequest)
-    {
-        $exist = ForgotPassword::where('email', $createCodeRequest->email)->first();
-        if($exist){
+    public function createCodeForgotPassword(
+        CreateCodeRequest $createCodeRequest,
+        AzureEmailService $azureEmailService
+    ) {
+        $exist = ForgotPassword::where(
+            'email',
+            $createCodeRequest->email
+        )->first();
+
+        if ($exist) {
             $exist->delete();
         }
-        $forgot = New ForgotPassword();
+
+        $code = random_int(100000, 999999);
+
+        $forgot = new ForgotPassword();
         $forgot->email = $createCodeRequest->email;
-        $forgot->code = random_int(100000, 999999);
+        $forgot->code = $code;
         $forgot->save();
-        return $this->sendMessageResponse('Código enviado, revisar correo.');
+
+        try {
+            $azureEmailService->send(
+                $createCodeRequest->email,
+                'Código para recuperar tu contraseña',
+                "
+            <html>
+                <body>
+                    <h2>Recuperación de contraseña</h2>
+
+                    <p>
+                        Has solicitado recuperar tu contraseña.
+                    </p>
+
+                    <p>
+                        Tu código de verificación es:
+                    </p>
+
+                    <h1>{$code}</h1>
+
+                    <p>
+                        Si no solicitaste este código, puedes ignorar este correo.
+                    </p>
+                </body>
+            </html>
+            "
+            );
+        } catch (\Throwable $e) {
+            dd($e->getMessage());
+            $forgot->delete();
+            return response()->json([
+                'message' => 'No fue posible enviar el código al correo.'
+            ], 500);
+        }
+
+        return $this->sendMessageResponse(
+            'Código enviado, revisar correo.'
+        );
     }
 
     public function validateCode(ValidateCodeRequest $validateCodeRequest)
