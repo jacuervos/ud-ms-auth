@@ -41,7 +41,7 @@ jobs:
           path: build/
 
   pages:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
 
@@ -61,10 +61,7 @@ jobs:
 
       - name: Generate test report
         run: |
-          rm -rf report
-          mkdir -p report
-          php artisan test --testdox-html build/tests.html --log-junit build/junit.xml
-          php scripts/generate-pages-report.php build/junit.xml build/tests.html report
+          php scripts/run-story-tests.php
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -1,0 +1,16 @@
+{
+  "backendStories": [
+    {
+      "id": "login-admin",
+      "title": "Login Administrador",
+      "filter": "LoginControllerTest",
+      "enabled": true
+    },
+    {
+      "id": "general-smoke",
+      "title": "General Smoke",
+      "filter": "ExampleTest",
+      "enabled": true
+    }
+  ]
+}
