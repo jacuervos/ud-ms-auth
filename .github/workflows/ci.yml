@@ -32,7 +32,7 @@ jobs:
       - name: Run tests
         run: |
           mkdir -p build
-          php artisan test --testdox-html build/testdox.html --log-junit build/junit.xml
+          php artisan test --testdox-html build/tests.html --log-junit build/junit.xml
 
       - name: Upload test report artifact
         uses: actions/upload-artifact@v4
@@ -63,7 +63,8 @@ jobs:
         run: |
           rm -rf report
           mkdir -p report
-          php artisan test --testdox-html report/index.html --log-junit report/junit.xml
+          php artisan test --testdox-html build/tests.html --log-junit build/junit.xml
+          php scripts/generate-pages-report.php build/junit.xml build/tests.html report
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
