@@ -113,6 +113,43 @@ class LoginControllerTest extends TestCase
         $response->assertJsonPath('data.error', 'Credenciales inválidas');
     }
 
+    public function test_login_returns_token_and_role_for_enabled_recycler_user(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'recycler@example.com',
+            'password' => Hash::make('password123'),
+            'rol_id' => Rol::where('name', Rol::RECYCLER)->value('id'),
+            'state_id' => State::where('name', State::ENABLED)->value('id'),
+        ]);
+
+        JWTAuth::shouldReceive('attempt')
+            ->twice()
+            ->with([
+                'email' => 'recycler@example.com',
+                'password' => 'password123',
+            ])
+            ->andReturn('jwt-token');
+
+        JWTAuth::shouldReceive('claims')
+            ->once()
+            ->with(['rol' => Rol::RECYCLER])
+            ->andReturnSelf();
+
+        Auth::shouldReceive('user')
+            ->once()
+            ->andReturn($user);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'recycler@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('data.access_token', 'jwt-token');
+        $response->assertJsonPath('data.rol', Rol::RECYCLER);
+    }
+
     public function test_login_rejects_disabled_user(): void
     {
         $user = User::factory()->create([

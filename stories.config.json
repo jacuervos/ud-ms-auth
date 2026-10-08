@@ -7,6 +7,24 @@
       "enabled": true
     },
     {
+      "id": "hu2-registro-usuario",
+      "title": "HU-2 Registro usuario",
+      "filter": "RegisterUserControllerTest",
+      "enabled": true
+    },
+    {
+      "id": "hu3-registro-recolector",
+      "title": "HU-3 Registro recolector",
+      "filter": "RegisterCollectorControllerTest",
+      "enabled": true
+    },
+    {
+      "id": "hu6-login-recolector",
+      "title": "HU-6 Login recolector",
+      "filter": "LoginControllerTest",
+      "enabled": true
+    },
+    {
       "id": "general-smoke",
       "title": "General Smoke",
       "filter": "ExampleTest",
