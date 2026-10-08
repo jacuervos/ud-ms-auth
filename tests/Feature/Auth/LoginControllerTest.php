@@ -59,6 +59,43 @@ class LoginControllerTest extends TestCase
         $response->assertJsonPath('data.rol', Rol::ADMIN);
     }
 
+    public function test_login_returns_token_and_role_for_enabled_non_admin_user(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'user@example.com',
+            'password' => Hash::make('password123'),
+            'rol_id' => Rol::where('name', Rol::USER)->value('id'),
+            'state_id' => State::where('name', State::ENABLED)->value('id'),
+        ]);
+
+        JWTAuth::shouldReceive('attempt')
+            ->twice()
+            ->with([
+                'email' => 'user@example.com',
+                'password' => 'password123',
+            ])
+            ->andReturn('jwt-token');
+
+        JWTAuth::shouldReceive('claims')
+            ->once()
+            ->with(['rol' => Rol::USER])
+            ->andReturnSelf();
+
+        Auth::shouldReceive('user')
+            ->once()
+            ->andReturn($user);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'user@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('data.access_token', 'jwt-token');
+        $response->assertJsonPath('data.rol', Rol::USER);
+    }
+
     public function test_login_rejects_invalid_credentials(): void
     {
         JWTAuth::shouldReceive('attempt')
