@@ -64,3 +64,9 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Tests And Reports
+
+- The auth test suite runs in `.github/workflows/ci.yml`.
+- The latest HTML report is published by the `pages` job when the workflow runs on `push`.
+- The report artifact is generated from `php artisan test --testdox-html` and includes the login, invalid credentials, and disabled-user coverage added for this sprint.
