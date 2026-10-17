@@ -175,4 +175,58 @@ class LoginControllerTest extends TestCase
         $response->assertStatus(401);
         $response->assertJsonPath('message', 'Usuario no habilitado');
     }
+
+    public function test_login_updates_firebase_token_and_handles_legacy_non_bcrypt_password(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'firebase@example.com',
+            'password' => Hash::make('password123'),
+            'rol_id' => Rol::where('name', Rol::USER)->value('id'),
+            'state_id' => State::where('name', State::ENABLED)->value('id'),
+        ]);
+
+        JWTAuth::shouldReceive('attempt')
+            ->twice()
+            ->andReturn('jwt-token');
+        JWTAuth::shouldReceive('claims')
+            ->once()
+            ->andReturnSelf();
+        Auth::shouldReceive('user')
+            ->once()
+            ->andReturn($user);
+
+        $res = $this->postJson('/api/login', [
+            'email' => 'firebase@example.com',
+            'password' => 'password123',
+            'firebase_token' => 'fcm-device-token-123',
+        ]);
+        $res->assertOk();
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'firebase_token' => 'fcm-device-token-123',
+        ]);
+
+        \Illuminate\Support\Facades\DB::table('forgot_passwords')->insert([
+            'email' => 'legacy@example.com',
+            'code' => 111111,
+        ]);
+
+        JWTAuth::shouldReceive('attempt')
+            ->twice()
+            ->andThrow(new \Exception('This password does not use the Bcrypt algorithm.'));
+
+        $legacyRes = $this->postJson('/api/login', [
+            'email' => 'legacy@example.com',
+            'password' => 'RECYCLEUD2026',
+        ]);
+        $legacyRes->assertStatus(401);
+        $legacyRes->assertJsonPath('message', 'Actualizar contraseña');
+
+        $invalidLegacyRes = $this->postJson('/api/login', [
+            'email' => 'legacy@example.com',
+            'password' => 'wrong-legacy',
+        ]);
+        $invalidLegacyRes->assertStatus(401);
+        $invalidLegacyRes->assertJsonPath('message', 'No pudimos validar el correo, contacte a soporte');
+    }
 }

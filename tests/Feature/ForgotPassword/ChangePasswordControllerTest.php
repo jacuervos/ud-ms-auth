@@ -195,6 +195,50 @@ class ChangePasswordControllerTest extends TestCase
         $invalidCodeResponse->assertStatus(404)
             ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'Código no encontrado.');
+
+        $missingCodeChangeResponse = $this->postJson('/api/change_password', [
+            'email' => 'nonexistent@example.com',
+            'code' => '000000',
+            'password' => 'newPass1234',
+            'password_confirmation' => 'newPass1234',
+        ]);
+        $missingCodeChangeResponse->assertStatus(404);
+
+        \Illuminate\Support\Facades\DB::table('forgot_passwords')->insert([
+            'email' => 'orphan@example.com',
+            'code' => 987654,
+        ]);
+        $orphanUserChangeResponse = $this->postJson('/api/change_password', [
+            'email' => 'orphan@example.com',
+            'code' => 987654,
+            'password' => 'newPass1234',
+            'password_confirmation' => 'newPass1234',
+        ]);
+        $orphanUserChangeResponse->assertStatus(404)
+            ->assertJsonPath('message', 'No existe un usuario asociado a este correo.');
+
+        $user = User::factory()->create([
+            'email' => 'fail.mail@example.com',
+            'password' => Hash::make('oldpassword123'),
+            'rol_id' => Rol::where('name', Rol::USER)->value('id'),
+            'state_id' => State::where('name', State::ENABLED)->value('id'),
+        ]);
+        \Illuminate\Support\Facades\DB::table('forgot_passwords')->insert([
+            'email' => $user->email,
+            'code' => 123123,
+        ]);
+
+        $this->mock(AzureEmailService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('send')
+                ->once()
+                ->andThrow(new \RuntimeException('Azure mail failure'));
+        });
+
+        $failMailResponse = $this->postJson('/api/send_code', [
+            'email' => $user->email,
+        ]);
+        $failMailResponse->assertStatus(500)
+            ->assertJsonPath('message', 'No fue posible enviar el código al correo.');
     }
 }
 

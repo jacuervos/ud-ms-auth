@@ -3,8 +3,9 @@
 chdir(dirname(__DIR__));
 
 $serviceName = basename(dirname(__DIR__));
-$configPath = __DIR__ . '/../stories.config.json';
-$reportDir = __DIR__ . '/../report';
+$projectRoot = dirname(__DIR__);
+$configPath = $projectRoot . '/stories.config.json';
+$reportDir = $projectRoot . '/report';
 $storiesDir = $reportDir . '/stories';
 
 if (!file_exists($configPath)) {
@@ -45,11 +46,53 @@ $summary = [
 $sprintGroups = [];
 
 /**
- * Resolve App\ classes referenced by the given test files to build a fallback coverage/source view when PCOV/Xdebug is not installed locally.
+ * Find test files in tests/ that match the given PHPUnit --filter pattern.
+ */
+function findTestFilesForFilter(string $filter, string $projectRoot): array
+{
+    $matched = [];
+    $tokens = array_filter(preg_split('/[|\\\\]+/', $filter) ?: []);
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($projectRoot . '/tests'));
+
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || $file->getExtension() !== 'php') {
+            continue;
+        }
+        $path = $file->getPathname();
+        $base = $file->getBasename('.php');
+        $content = file_get_contents($path) ?: '';
+
+        foreach ($tokens as $token) {
+            if ($token === $base || str_contains($path, $token) || str_contains($content, 'function ' . $token)) {
+                $matched[$path] = $path;
+                break;
+            }
+        }
+    }
+
+    return array_values($matched);
+}
+
+/**
+ * Resolve App\ controllers/services/mailables exercised by the given test files.
  */
 function resolveReferencedAppFiles(array $testFiles, string $projectRoot): array
 {
-    $appFiles = [];
+    $primaryFiles = [];
+    $secondaryFiles = [];
+
+    $apiRoutesPath = $projectRoot . '/routes/api.php';
+    $routesContent = file_exists($apiRoutesPath) ? (file_get_contents($apiRoutesPath) ?: '') : '';
+    $routeLines = $routesContent !== '' ? (preg_split('/\r?\n/', $routesContent) ?: []) : [];
+
+    $importedControllers = [];
+    if (preg_match_all('/^use\s+\\\\?(App\\\\Http\\\\Controllers\\\\[A-Za-z0-9_\\\\]+)\s*;/m', $routesContent, $useMatches)) {
+        foreach ($useMatches[1] as $fqcn) {
+            $short = substr(strrchr($fqcn, '\\') ?: ('\\' . $fqcn), 1);
+            $importedControllers[$short] = $fqcn;
+        }
+    }
+
     foreach ($testFiles as $testFile) {
         if (!is_string($testFile) || !file_exists($testFile)) {
             continue;
@@ -58,29 +101,68 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot): array
         if ($content === false) {
             continue;
         }
+
+        // Direct imports in test file
         if (preg_match_all('/^use\s+(App\\\\[A-Za-z0-9_\\\\]+)\s*;/m', $content, $matches)) {
             foreach ($matches[1] as $className) {
+                if (str_starts_with($className, 'App\\Http\\Middleware\\')) {
+                    continue;
+                }
                 $relativePath = 'app/' . str_replace('\\', '/', substr($className, 4)) . '.php';
                 $fullPath = $projectRoot . '/' . $relativePath;
                 if (file_exists($fullPath)) {
-                    $appFiles[$relativePath] = $fullPath;
+                    if (
+                        str_starts_with($className, 'App\\Http\\Controllers\\')
+                        || str_starts_with($className, 'App\\Mail\\')
+                        || str_starts_with($className, 'App\\Services\\')
+                    ) {
+                        $primaryFiles[$relativePath] = $fullPath;
+                    } else {
+                        $secondaryFiles[$relativePath] = $fullPath;
+                    }
                 }
             }
         }
-        // Also scan routes/api.php for controllers matching endpoints called in the test
-        $apiRoutesPath = $projectRoot . '/routes/api.php';
-        if (file_exists($apiRoutesPath)) {
-            $routesContent = file_get_contents($apiRoutesPath) ?: '';
-            if (preg_match_all('/(getJson|postJson|putJson|patchJson|deleteJson)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $urlMatches)) {
-                foreach ($urlMatches[2] as $url) {
-                    $segment = trim((string)preg_replace('#^/api/?#', '', $url), '/');
-                    $firstPart = explode('/', $segment)[0] ?? '';
-                    if ($firstPart !== '' && preg_match_all('/[\'"]\/?' . preg_quote($firstPart, '/') . '[^\'"]*[\'"]\s*,\s*[\'"]?\\\\?(App\\\\Http\\\\Controllers\\\\[A-Za-z0-9_\\\\]+)(?:@[A-Za-z0-9_]+)?(::class)?/', $routesContent, $ctrlMatches)) {
-                        foreach ($ctrlMatches[1] as $ctrlClass) {
+
+        // Match endpoints called in the test against routes/api.php
+        if (preg_match_all('/(?:getJson|postJson|putJson|patchJson|deleteJson|get|post|put|patch|delete)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $urlMatches)) {
+            foreach ($urlMatches[1] as $rawUrl) {
+                $cleanUrl = trim((string)preg_replace('#^https?://[^/]+#', '', $rawUrl));
+                $cleanUrl = preg_replace('/\?.*$/', '', $cleanUrl);
+                $cleanUrl = trim((string)preg_replace('#^/?api/?#', '', $cleanUrl), '/');
+                if ($cleanUrl === '') {
+                    continue;
+                }
+
+                $urlSegments = explode('/', $cleanUrl);
+                $patternParts = [];
+                foreach ($urlSegments as $seg) {
+                    if ($seg === '' || str_contains($seg, '$') || str_contains($seg, '{') || ctype_digit($seg)) {
+                        $patternParts[] = '\{[^}]+\}';
+                    } else {
+                        $patternParts[] = preg_quote($seg, '#');
+                    }
+                }
+                $routeRegex = '#[\'"]/?' . implode('/', $patternParts) . '[\'"]#';
+
+                foreach ($routeLines as $line) {
+                    if (preg_match($routeRegex, $line)) {
+                        if (preg_match('/\\\\?(App\\\\Http\\\\Controllers\\\\[A-Za-z0-9_\\\\]+)/', $line, $m)) {
+                            $ctrlClass = ltrim($m[1], '\\');
                             $rel = 'app/' . str_replace('\\', '/', substr($ctrlClass, 4)) . '.php';
                             $full = $projectRoot . '/' . $rel;
                             if (file_exists($full)) {
-                                $appFiles[$rel] = $full;
+                                $primaryFiles[$rel] = $full;
+                            }
+                        } else {
+                            foreach ($importedControllers as $short => $fqcn) {
+                                if (str_contains($line, $short . '::class')) {
+                                    $rel = 'app/' . str_replace('\\', '/', substr($fqcn, 4)) . '.php';
+                                    $full = $projectRoot . '/' . $rel;
+                                    if (file_exists($full)) {
+                                        $primaryFiles[$rel] = $full;
+                                    }
+                                }
                             }
                         }
                     }
@@ -89,13 +171,20 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot): array
         }
     }
 
+    $appFiles = count($primaryFiles) > 0 ? $primaryFiles : $secondaryFiles;
+
     if (count($appFiles) === 0) {
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($projectRoot . '/app'));
-        foreach ($iterator as $file) {
-            if ($file->isFile() && $file->getExtension() === 'php') {
-                $full = $file->getPathname();
-                $rel = ltrim(str_replace($projectRoot, '', $full), '/\\');
-                $appFiles[$rel] = $full;
+        $defaultModel = $projectRoot . '/app/Models/User.php';
+        if (file_exists($defaultModel)) {
+            $appFiles['app/Models/User.php'] = $defaultModel;
+        } else {
+            $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($projectRoot . '/app'));
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $full = $file->getPathname();
+                    $rel = ltrim(str_replace($projectRoot, '', $full), '/\\');
+                    $appFiles[$rel] = $full;
+                }
             }
         }
     }
@@ -105,19 +194,35 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot): array
 }
 
 /**
+ * Create a story-scoped phpunit.xml so PHPUnit coverage only measures the files exercised by that story.
+ */
+function buildStoryPhpunitXml(string $baseXmlContent, array $appFiles): ?string
+{
+    if ($baseXmlContent === '' || count($appFiles) === 0) {
+        return null;
+    }
+
+    $includeLines = [];
+    foreach (array_keys($appFiles) as $relPath) {
+        $includeLines[] = '            <file>' . htmlspecialchars($relPath, ENT_QUOTES, 'UTF-8') . '</file>';
+    }
+    $newSource = "<source>\n        <include>\n" . implode("\n", $includeLines) . "\n        </include>\n    </source>";
+
+    return preg_replace('#<source>.*?</source>#s', $newSource, $baseXmlContent);
+}
+
+/**
  * Generate a fallback HTML coverage report when PHPUnit --coverage-html was not generated (no PCOV/Xdebug locally).
  */
-function generateFallbackCoverageHtml(string $coverageDir, array $storySummary, array $testCases, string $projectRoot, string $serviceName): array
+function generateFallbackCoverageHtml(string $coverageDir, array $storySummary, array $appFiles, string $serviceName): array
 {
     if (!is_dir($coverageDir)) {
         mkdir($coverageDir, 0777, true);
     }
 
-    $testFiles = array_values(array_unique(array_filter(array_column($testCases, 'file'))));
-    $appFiles = resolveReferencedAppFiles($testFiles, $projectRoot);
-
     $totalLines = 0;
     $executableLines = 0;
+    $coveredLines = 0;
     $fileRowsHtml = '';
     $fileDetailSections = '';
 
@@ -125,6 +230,7 @@ function generateFallbackCoverageHtml(string $coverageDir, array $storySummary, 
         $lines = file($fullPath, FILE_IGNORE_NEW_LINES) ?: [];
         $lineCount = count($lines);
         $execCount = 0;
+        $fileCoveredCount = 0;
         $codeBlock = '';
 
         foreach ($lines as $idx => $lineText) {
@@ -141,6 +247,7 @@ function generateFallbackCoverageHtml(string $coverageDir, array $storySummary, 
 
             if ($isExec) {
                 $execCount++;
+                $fileCoveredCount++;
             }
 
             $rowClass = $isExec ? 'line-exec' : 'line-neutral';
@@ -154,32 +261,38 @@ function generateFallbackCoverageHtml(string $coverageDir, array $storySummary, 
 
         $totalLines += $lineCount;
         $executableLines += $execCount;
+        $coveredLines += $fileCoveredCount;
+        $filePct = $execCount > 0 ? round(($fileCoveredCount / $execCount) * 100, 1) : 100.0;
         $anchor = 'file-' . md5($relPath);
 
         $fileRowsHtml .= sprintf(
-            '<tr><td><a href="#%s" class="file-link">%s</a></td><td>%d</td><td>%d</td><td><span class="chip good">Cubierto por %d tests</span></td></tr>',
+            '<tr><td><a href="#%s" class="file-link">%s</a></td><td>%d / %d</td><td>%s%%</td><td><span class="chip good">%s%% cubierto</span></td></tr>',
             $anchor,
             htmlspecialchars($relPath, ENT_QUOTES, 'UTF-8'),
-            $lineCount,
+            $fileCoveredCount,
             $execCount,
-            count($testCases)
+            number_format($filePct, 1),
+            number_format($filePct, 1)
         );
 
         $fileDetailSections .= sprintf(
-            '<section id="%s" class="panel file-section"><div class="file-header"><h3>%s</h3><span>%d líneas ejecutables / %d totales</span></div><div class="code-wrap"><table class="code-table">%s</table></div></section>',
+            '<section id="%s" class="panel file-section"><div class="file-header"><h3>%s</h3><span>%d / %d líneas ejecutables (%s%%)</span></div><div class="code-wrap"><table class="code-table">%s</table></div></section>',
             $anchor,
             htmlspecialchars($relPath, ENT_QUOTES, 'UTF-8'),
+            $fileCoveredCount,
             $execCount,
-            $lineCount,
+            number_format($filePct, 1),
             $codeBlock
         );
     }
 
+    $coveragePct = $executableLines > 0 ? round(($coveredLines / $executableLines) * 100, 1) : 100.0;
     $titleEsc = htmlspecialchars($storySummary['title'], ENT_QUOTES, 'UTF-8');
     $idEsc = htmlspecialchars($storySummary['id'], ENT_QUOTES, 'UTF-8');
     $filterEsc = htmlspecialchars($storySummary['filter'], ENT_QUOTES, 'UTF-8');
     $serviceEsc = htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8');
     $fileCount = count($appFiles);
+    $covFormatted = number_format($coveragePct, 1) . '%';
 
     $html = <<<HTML
 <!doctype html>
@@ -229,10 +342,10 @@ function generateFallbackCoverageHtml(string $coverageDir, array $storySummary, 
       <h1>{$serviceEsc} · Coverage: {$titleEsc}</h1>
       <p class="meta">ID: <b>{$idEsc}</b> · Sprint: <b>{$storySummary['sprint']}</b> · Filtro: <code>{$filterEsc}</code></p>
       <div class="grid">
+        <div class="metric"><small>Cobertura</small><b>{$covFormatted}</b></div>
         <div class="metric"><small>Tests ejecutados</small><b>{$storySummary['passed']} / {$storySummary['tests']}</b></div>
-        <div class="metric"><small>Aserciones</small><b>{$storySummary['assertions']}</b></div>
         <div class="metric"><small>Archivos cubiertos</small><b>{$fileCount}</b></div>
-        <div class="metric"><small>Líneas ejecutables</small><b>{$executableLines}</b></div>
+        <div class="metric"><small>Líneas ejecutables</small><b>{$coveredLines} / {$executableLines}</b></div>
       </div>
     </section>
 
@@ -240,7 +353,7 @@ function generateFallbackCoverageHtml(string $coverageDir, array $storySummary, 
       <h2>Archivos de código cubiertos por la historia</h2>
       <table class="summary-table">
         <thead>
-          <tr><th>Archivo</th><th>Líneas totales</th><th>Líneas ejecutables</th><th>Estado</th></tr>
+          <tr><th>Archivo</th><th>Líneas (Cubiertas / Total)</th><th>Porcentaje</th><th>Estado</th></tr>
         </thead>
         <tbody>
           {$fileRowsHtml}
@@ -260,13 +373,14 @@ HTML;
         'files' => $fileCount,
         'executableLines' => $executableLines,
         'totalLines' => $totalLines,
+        'coveragePercent' => $coveragePct,
     ];
 }
 
 /**
  * Generate a rich detailed tests.html for a story using JUnit XML testcases and links to coverage.
  */
-function generateStoryTestsHtml(string $testdoxPath, array $storySummary, array $testCases, string $rawTestdoxHtml, string $serviceName): void
+function generateStoryTestsHtml(string $testdoxPath, array $storySummary, array $testCases, string $serviceName): void
 {
     $rowsHtml = '';
     foreach ($testCases as $tc) {
@@ -298,7 +412,7 @@ function generateStoryTestsHtml(string $testdoxPath, array $storySummary, array 
     $filterEsc = htmlspecialchars($storySummary['filter'], ENT_QUOTES, 'UTF-8');
     $serviceEsc = htmlspecialchars($serviceName, ENT_QUOTES, 'UTF-8');
     $covLabel = $storySummary['coveragePercent'] !== null
-        ? $storySummary['coveragePercent'] . '%'
+        ? number_format((float)$storySummary['coveragePercent'], 1) . '%'
         : 'Ver reporte';
 
     $html = <<<HTML
@@ -370,8 +484,6 @@ HTML;
     file_put_contents($testdoxPath, $html);
 }
 
-$projectRoot = dirname(__DIR__);
-
 foreach ($stories as $story) {
     $id = $story['id'];
     $title = $story['title'];
@@ -394,6 +506,12 @@ foreach ($stories as $story) {
     $testdoxPath = $storyDir . '/tests.html';
     $cloverPath = $storyDir . '/clover.xml';
 
+    $matchedTestFiles = findTestFilesForFilter($filter, $projectRoot);
+    $targetAppFiles = resolveReferencedAppFiles($matchedTestFiles, $projectRoot);
+    $phpunitXmlPath = $projectRoot . '/phpunit.xml';
+    $originalPhpunitXml = file_exists($phpunitXmlPath) ? (file_get_contents($phpunitXmlPath) ?: '') : '';
+    $storyPhpunitXml = buildStoryPhpunitXml($originalPhpunitXml, $targetAppFiles);
+
     if ($hasCoverageDriver) {
         $cmd = sprintf(
             'php artisan test --filter %s --testdox-html %s --log-junit %s --coverage-html %s --coverage-clover %s',
@@ -413,7 +531,16 @@ foreach ($stories as $story) {
     }
 
     echo "Running story {$id} (sprint {$sprint})...\n";
-    passthru($cmd, $exitCode);
+    try {
+        if ($storyPhpunitXml !== null && $originalPhpunitXml !== '') {
+            file_put_contents($phpunitXmlPath, $storyPhpunitXml);
+        }
+        passthru($cmd, $exitCode);
+    } finally {
+        if ($originalPhpunitXml !== '') {
+            file_put_contents($phpunitXmlPath, $originalPhpunitXml);
+        }
+    }
 
     $stats = [
         'tests' => 0,
@@ -478,8 +605,6 @@ foreach ($stories as $story) {
         }
     }
 
-    $rawTestdoxHtml = file_exists($testdoxPath) ? (file_get_contents($testdoxPath) ?: '') : '';
-
     $storySummary = [
         'id' => $id,
         'title' => $title,
@@ -499,10 +624,13 @@ foreach ($stories as $story) {
     ];
 
     if (!file_exists($coverageDir . '/index.html')) {
-        generateFallbackCoverageHtml($coverageDir, $storySummary, $testCases, $projectRoot, $serviceName);
+        $fallbackStats = generateFallbackCoverageHtml($coverageDir, $storySummary, $targetAppFiles, $serviceName);
+        if ($storySummary['coveragePercent'] === null) {
+            $storySummary['coveragePercent'] = $fallbackStats['coveragePercent'];
+        }
     }
 
-    generateStoryTestsHtml($testdoxPath, $storySummary, $testCases, $rawTestdoxHtml, $serviceName);
+    generateStoryTestsHtml($testdoxPath, $storySummary, $testCases, $serviceName);
 
     $summary['stories'][] = $storySummary;
     $sprintGroups[$sprintKey]['stories'][] = $storySummary;
