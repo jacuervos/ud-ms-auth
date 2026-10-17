@@ -24,7 +24,7 @@ jobs:
         with:
           php-version: '8.4'
           extensions: mbstring, dom, fileinfo, sqlite3, pdo_sqlite
-          coverage: none
+          coverage: pcov
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
@@ -54,7 +54,7 @@ jobs:
         with:
           php-version: '8.4'
           extensions: mbstring, dom, fileinfo, sqlite3, pdo_sqlite
-          coverage: none
+          coverage: pcov
 
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
