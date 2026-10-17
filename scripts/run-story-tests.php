@@ -51,7 +51,21 @@ $sprintGroups = [];
 function findTestFilesForFilter(string $filter, string $projectRoot): array
 {
     $matched = [];
-    $tokens = array_filter(preg_split('/[|\\\\]+/', $filter) ?: []);
+    $rawAlternatives = array_filter(array_map('trim', explode('|', $filter)));
+    $tokens = [];
+    foreach ($rawAlternatives as $alt) {
+        $normalized = str_replace('\\\\', '\\', $alt);
+        if (str_contains($normalized, '::')) {
+            $parts = explode('::', $normalized);
+            $tokens[] = end($parts);
+        } elseif (str_contains($normalized, '\\')) {
+            $parts = explode('\\', $normalized);
+            $tokens[] = end($parts);
+        } else {
+            $tokens[] = $normalized;
+        }
+    }
+
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($projectRoot . '/tests'));
 
     foreach ($iterator as $file) {
@@ -63,7 +77,7 @@ function findTestFilesForFilter(string $filter, string $projectRoot): array
         $content = file_get_contents($path) ?: '';
 
         foreach ($tokens as $token) {
-            if ($token === $base || str_contains($path, $token) || str_contains($content, 'function ' . $token)) {
+            if ($token === $base || str_contains($content, 'function ' . $token)) {
                 $matched[$path] = $path;
                 break;
             }
@@ -76,7 +90,7 @@ function findTestFilesForFilter(string $filter, string $projectRoot): array
 /**
  * Resolve App\ controllers/services/mailables exercised by the given test files.
  */
-function resolveReferencedAppFiles(array $testFiles, string $projectRoot): array
+function resolveReferencedAppFiles(array $testFiles, string $projectRoot, string $filter = ''): array
 {
     $primaryFiles = [];
     $secondaryFiles = [];
@@ -124,9 +138,16 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot): array
             }
         }
 
-        // Match endpoints called in the test against routes/api.php
-        if (preg_match_all('/(?:getJson|postJson|putJson|patchJson|deleteJson|get|post|put|patch|delete)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $urlMatches)) {
-            foreach ($urlMatches[1] as $rawUrl) {
+        $searchContent = $content;
+        if ($filter !== '' && preg_match('/function\s+' . preg_quote($filter, '/') . '\s*\([^)]*\)[^{]*\{(.*?)\n    \}/s', $content, $methodMatch)) {
+            $searchContent = $methodMatch[1];
+        }
+
+        // Match endpoints called in the test against routes/api.php (including HTTP verb)
+        if (preg_match_all('/\b(getJson|postJson|putJson|patchJson|deleteJson|get|post|put|patch|delete)\(\s*[\'"]([^\'"]+)[\'"]/', $searchContent, $urlMatches, PREG_SET_ORDER)) {
+            foreach ($urlMatches as $urlMatch) {
+                $httpVerb = strtolower(str_replace('Json', '', $urlMatch[1]));
+                $rawUrl = $urlMatch[2];
                 $cleanUrl = trim((string)preg_replace('#^https?://[^/]+#', '', $rawUrl));
                 $cleanUrl = preg_replace('/\?.*$/', '', $cleanUrl);
                 $cleanUrl = trim((string)preg_replace('#^/?api/?#', '', $cleanUrl), '/');
@@ -143,7 +164,7 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot): array
                         $patternParts[] = preg_quote($seg, '#');
                     }
                 }
-                $routeRegex = '#[\'"]/?' . implode('/', $patternParts) . '[\'"]#';
+                $routeRegex = '#Route::' . preg_quote($httpVerb, '#') . '\s*\(\s*[\'"]/?' . implode('/', $patternParts) . '[\'"]#i';
 
                 foreach ($routeLines as $line) {
                     if (preg_match($routeRegex, $line)) {
@@ -507,7 +528,7 @@ foreach ($stories as $story) {
     $cloverPath = $storyDir . '/clover.xml';
 
     $matchedTestFiles = findTestFilesForFilter($filter, $projectRoot);
-    $targetAppFiles = resolveReferencedAppFiles($matchedTestFiles, $projectRoot);
+    $targetAppFiles = resolveReferencedAppFiles($matchedTestFiles, $projectRoot, $filter);
     $phpunitXmlPath = $projectRoot . '/phpunit.xml';
     $originalPhpunitXml = file_exists($phpunitXmlPath) ? (file_get_contents($phpunitXmlPath) ?: '') : '';
     $storyPhpunitXml = buildStoryPhpunitXml($originalPhpunitXml, $targetAppFiles);
@@ -758,3 +779,23 @@ HTML;
 file_put_contents($reportDir . '/index.html', $html);
 
 echo "Generated backend story report in report/\n";
+
+$minCoverageThreshold = 80.0;
+$belowCoverageStories = [];
+foreach ($summary['stories'] as $story) {
+    $cov = (float)($story['coveragePercent'] ?? 0.0);
+    if ($cov < $minCoverageThreshold) {
+        $belowCoverageStories[] = sprintf('%s (%.1f%% < %.1f%%)', $story['id'], $cov, $minCoverageThreshold);
+    }
+}
+
+if ($totalFailures > 0 || $totalErrors > 0) {
+    fwrite(STDERR, "ERROR: Test failures or errors detected ({$totalFailures} failures, {$totalErrors} errors). Deployment blocked.\n");
+    exit(1);
+}
+
+if (count($belowCoverageStories) > 0) {
+    fwrite(STDERR, "ERROR: Coverage below {$minCoverageThreshold}% minimum threshold in stories: " . implode(', ', $belowCoverageStories) . ". Deployment blocked.\n");
+    exit(1);
+}
+

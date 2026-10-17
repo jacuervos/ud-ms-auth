@@ -29,10 +29,11 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Run tests
+      - name: Run tests and enforce 80% coverage threshold
         run: |
           mkdir -p build
           php artisan test --testdox-html build/tests.html --log-junit build/junit.xml
+          php scripts/run-story-tests.php
 
       - name: Upload test report artifact
         uses: actions/upload-artifact@v4
@@ -41,7 +42,7 @@ jobs:
           path: build/
 
   pages:
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
 
