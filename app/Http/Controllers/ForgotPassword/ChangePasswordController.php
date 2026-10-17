@@ -212,7 +212,6 @@ class ChangePasswordController extends BaseController
 "
             );
         } catch (\Throwable $e) {
-            dd($e->getMessage());
             $forgot->delete();
             return response()->json([
                 'message' => 'No fue posible enviar el código al correo.'
@@ -237,7 +236,17 @@ class ChangePasswordController extends BaseController
     public function changePassword(ChangePasswordRequest $changePasswordRequest)
     {
         $exist = ForgotPassword::where('code', $changePasswordRequest->code)->first();
-        $user = User::where('email', $changePasswordRequest->email)->first();
+        if (!$exist) {
+            return $this->sendError('Código no encontrado.');
+        }
+
+        $user = User::where('email', $changePasswordRequest->email)->whereNull('deleted_at')->first();
+        if (!$user) {
+            return response()->json([
+                'message' => 'No existe un usuario asociado a este correo.'
+            ], 404);
+        }
+
         $user->password = Hash::make($changePasswordRequest->password);
         $user->save();
         $exist->delete();

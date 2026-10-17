@@ -2,32 +2,72 @@
   "backendStories": [
     {
       "id": "login-admin",
-      "title": "Login Administrador",
+      "title": "HU-1 Login Administrador",
       "filter": "LoginControllerTest",
+      "sprint": 1,
       "enabled": true
     },
     {
       "id": "hu2-registro-usuario",
       "title": "HU-2 Registro usuario",
       "filter": "RegisterUserControllerTest",
+      "sprint": 1,
       "enabled": true
     },
     {
       "id": "hu3-registro-recolector",
       "title": "HU-3 Registro recolector",
       "filter": "RegisterCollectorControllerTest",
+      "sprint": 1,
+      "enabled": true
+    },
+    {
+      "id": "hu5-login-usuario",
+      "title": "HU-5 Login usuario",
+      "filter": "LoginControllerTest",
+      "sprint": 1,
       "enabled": true
     },
     {
       "id": "hu6-login-recolector",
       "title": "HU-6 Login recolector",
       "filter": "LoginControllerTest",
+      "sprint": 1,
+      "enabled": true
+    },
+    {
+      "id": "hu11-configuracion-servicio-correo",
+      "title": "HU-11 Configuración de servicio de correo",
+      "filter": "MailConfigurationTest",
+      "sprint": 2,
+      "enabled": true
+    },
+    {
+      "id": "hu12-recuperar-contrasena-administrador",
+      "title": "HU-12 Recuperar contraseña administrador",
+      "filter": "ChangePasswordControllerTest",
+      "sprint": 2,
+      "enabled": true
+    },
+    {
+      "id": "hu13-recuperar-contrasena-usuario",
+      "title": "HU-13 Recuperar contraseña usuario",
+      "filter": "ChangePasswordControllerTest",
+      "sprint": 2,
+      "enabled": true
+    },
+    {
+      "id": "hu14-recuperar-contrasena-recolector",
+      "title": "HU-14 Recuperar contraseña recolector",
+      "filter": "ChangePasswordControllerTest",
+      "sprint": 2,
       "enabled": true
     },
     {
       "id": "general-smoke",
       "title": "General Smoke",
       "filter": "ExampleTest",
+      "sprint": 1,
       "enabled": true
     }
   ]
