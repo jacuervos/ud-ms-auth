@@ -116,10 +116,28 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot, string
             continue;
         }
 
-        // Direct imports in test file
+        // Match controller by test class naming convention (e.g. RegisterUserControllerTest -> RegisterUserController.php)
+        $testBase = basename($testFile, '.php');
+        if (str_ends_with($testBase, 'Test') && is_dir($projectRoot . '/app/Http/Controllers')) {
+            $targetCtrl = substr($testBase, 0, -4) . '.php';
+            $ctrlIter = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($projectRoot . '/app/Http/Controllers'));
+            foreach ($ctrlIter as $ctrlFile) {
+                if ($ctrlFile->isFile() && $ctrlFile->getFilename() === $targetCtrl) {
+                    $full = $ctrlFile->getPathname();
+                    $rel = ltrim(str_replace($projectRoot, '', $full), '/\\');
+                    $primaryFiles[$rel] = $full;
+                }
+            }
+        }
+
+        // Direct imports in test file (excluding mocked classes)
         if (preg_match_all('/^use\s+(App\\\\[A-Za-z0-9_\\\\]+)\s*;/m', $content, $matches)) {
             foreach ($matches[1] as $className) {
                 if (str_starts_with($className, 'App\\Http\\Middleware\\')) {
+                    continue;
+                }
+                $shortClass = substr(strrchr($className, '\\') ?: ('\\' . $className), 1);
+                if (preg_match('/(?:->mock|->spy|->createMock|->instance|Mockery::mock)\(\s*' . preg_quote($shortClass, '/') . '::class/', $content)) {
                     continue;
                 }
                 $relativePath = 'app/' . str_replace('\\', '/', substr($className, 4)) . '.php';
@@ -141,6 +159,12 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot, string
         $searchContent = $content;
         if ($filter !== '' && preg_match('/function\s+' . preg_quote($filter, '/') . '\s*\([^)]*\)[^{]*\{(.*?)\n    \}/s', $content, $methodMatch)) {
             $searchContent = $methodMatch[1];
+        }
+
+        if (preg_match_all('/const\s+([A-Z0-9_]+)\s*=\s*([\'"][^\'"]+[\'"])\s*;/', $content, $constMatches, PREG_SET_ORDER)) {
+            foreach ($constMatches as $cm) {
+                $searchContent = str_replace('self::' . $cm[1], $cm[2], $searchContent);
+            }
         }
 
         // Match endpoints called in the test against routes/api.php (including HTTP verb)
@@ -192,21 +216,14 @@ function resolveReferencedAppFiles(array $testFiles, string $projectRoot, string
         }
     }
 
-    $appFiles = count($primaryFiles) > 0 ? $primaryFiles : $secondaryFiles;
+    $appFiles = count($primaryFiles) > 0 ? $primaryFiles : [];
 
     if (count($appFiles) === 0) {
-        $defaultModel = $projectRoot . '/app/Models/User.php';
-        if (file_exists($defaultModel)) {
-            $appFiles['app/Models/User.php'] = $defaultModel;
-        } else {
-            $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($projectRoot . '/app'));
-            foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
-                    $full = $file->getPathname();
-                    $rel = ltrim(str_replace($projectRoot, '', $full), '/\\');
-                    $appFiles[$rel] = $full;
-                }
-            }
+        $baseController = $projectRoot . '/app/Http/Controllers/Controller.php';
+        if (file_exists($baseController)) {
+            $appFiles['app/Http/Controllers/Controller.php'] = $baseController;
+        } elseif (count($secondaryFiles) > 0) {
+            $appFiles = $secondaryFiles;
         }
     }
 
