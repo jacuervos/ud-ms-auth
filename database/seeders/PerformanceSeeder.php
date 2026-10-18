@@ -23,6 +23,8 @@ class PerformanceSeeder extends Seeder
 
         $this->command?->info("=== Iniciando PerformanceSeeder ( lote #{$runId} ) ===");
 
+        $this->syncPostgresSequences();
+
         // 1. Catálogos base: rols, states, type_identifications
         $roleMap = $this->seedRoles($now);
         $stateMap = $this->seedStates($now);
@@ -61,7 +63,55 @@ class PerformanceSeeder extends Seeder
         $this->seedTips($numTips, $runId, $now);
         $this->seedBlogs($numBlogs, $runId, $now);
 
+        $this->syncPostgresSequences();
+
         $this->command?->info('=== PerformanceSeeder completado exitosamente ===');
+    }
+
+    private function syncPostgresSequences(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        $tables = [
+            'rols' => 'id',
+            'states' => 'id',
+            'type_identifications' => 'id',
+            'levels' => 'id',
+            'type_wastes' => 'id',
+            'users' => 'id',
+            'collectors' => 'id',
+            'collector_locations' => 'id',
+            'orders' => 'id',
+            'collector_orders' => 'id',
+            'order_type_wastes' => 'id',
+            'tips' => 'id',
+            'blogs' => (Schema::hasTable('blogs') && Schema::hasColumn('blogs', 'Id')) ? 'Id' : 'id',
+        ];
+
+        foreach ($tables as $table => $pk) {
+            if (!Schema::hasTable($table) || !Schema::hasColumn($table, $pk)) {
+                continue;
+            }
+
+            try {
+                $seqObj = DB::selectOne("SELECT pg_get_serial_sequence(?, ?) AS seq", ["\"{$table}\"", $pk]);
+                $seq = $seqObj->seq ?? null;
+                if (!$seq) {
+                    $seqObj = DB::selectOne("SELECT pg_get_serial_sequence(?, ?) AS seq", [$table, $pk]);
+                    $seq = $seqObj->seq ?? null;
+                }
+                if ($seq) {
+                    $maxId = (int) DB::table($table)->max($pk);
+                    if ($maxId > 0) {
+                        DB::statement("SELECT setval(?, ?, true)", [$seq, $maxId]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignorar si la tabla no utiliza secuencia serial
+            }
+        }
     }
 
     private function seedRoles(string $now): array
